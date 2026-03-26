@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blood Bowl Blocking Calculator</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #f0c060;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 20px;
+  }
+  .layout {
+    display: flex;
+    gap: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+    flex-wrap: wrap;
+  }
+  .panel {
+    background: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .controls-panel {
+    flex: 0 0 240px;
+    min-width: 200px;
+  }
+  .grid-panel {
+    flex: 1;
+    min-width: 300px;
+  }
+  .result-panel {
+    width: 100%;
+    min-height: 80px;
+  }
+  .panel-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #f0c060;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #0f3460;
+    padding-bottom: 8px;
+  }
+  .section { margin-bottom: 16px; }
+  .section label {
+    display: block;
+    font-size: 12px;
+    color: #aaa;
+    margin-bottom: 6px;
+  }
+  .btn-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1.5px solid #0f3460;
+    background: #0f3460;
+    color: #ccc;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+  .btn:hover { background: #1a4a80; border-color: #2a6ab0; }
+  .btn.active-team1 { background: #1a5276; border-color: #3498db; color: #7ec8e3; }
+  .btn.active-team2 { background: #5b1a1a; border-color: #e74c3c; color: #f1948a; }
+  .btn.active-guard { background: #4a3a00; border-color: #f0c060; color: #f0c060; }
+  .btn.active-blocker { background: #1a5276; border-color: #3498db; color: #fff; }
+  .btn.active-defender { background: #5b1a1a; border-color: #e74c3c; color: #fff; }
+  .btn.active-str { background: #1e3a1e; border-color: #27ae60; color: #82e0aa; }
+  .btn.danger { background: #5b1a1a; border-color: #e74c3c; color: #f1948a; }
+
+  /* Grid */
+  #grid-container {
+    display: inline-block;
+    border: 2px solid #0f3460;
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+  }
+  .grid-row { display: flex; }
+  .cell {
+    width: 52px;
+    height: 52px;
+    border-right: 1px solid #1a2a4a;
+    border-bottom: 1px solid #1a2a4a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: #0d1b2e;
+    transition: background 0.1s;
+  }
+  .cell:hover { background: #1a2a4a; }
+  .cell.highlight { background: #1a3a2a; }
+  .player {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    position: relative;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .player:hover { transform: scale(1.1); }
+  .player.team1 { background: #1a5276; border-color: #3498db; color: #7ec8e3; }
+  .player.team2 { background: #5b1a1a; border-color: #e74c3c; color: #f1948a; }
+  .player.is-blocker { box-shadow: 0 0 0 3px #3498db; }
+  .player.is-defender { box-shadow: 0 0 0 3px #e74c3c; }
+  .guard-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    background: #f0c060;
+    border-radius: 50%;
+    border: 1.5px solid #0d1b2e;
+  }
+  .str-badge {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0d1b2e;
+    border: 1px solid #555;
+    border-radius: 3px;
+    font-size: 9px;
+    padding: 0 3px;
+    color: #aaa;
+    white-space: nowrap;
+  }
+
+  /* Result */
+  .result-box {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .dice-display {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .die {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: #f0c060;
+    color: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 900;
+    border: 2px solid #c8a030;
+  }
+  .die.dim { background: #444; color: #888; border-color: #555; }
+  .result-text {
+    flex: 1;
+    min-width: 200px;
+  }
+  .result-main {
+    font-size: 18px;
+    font-weight: 700;
+    color: #f0c060;
+    margin-bottom: 4px;
+  }
+  .result-detail {
+    font-size: 13px;
+    color: #aaa;
+    line-height: 1.6;
+  }
+  .result-detail span { color: #e0e0e0; }
+  .chooser-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 6px;
+  }
+  .chooser-blocker { background: #1a5276; color: #7ec8e3; }
+  .chooser-defender { background: #5b1a1a; color: #f1948a; }
+  .no-result { color: #666; font-style: italic; font-size: 14px; }
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #888;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .mode-hint {
+    font-size: 11px;
+    color: #888;
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: #0d1b2e;
+    border-radius: 6px;
+    border: 1px solid #0f3460;
+    line-height: 1.5;
+  }
+  .str-select {
+    background: #0d1b2e;
+    border: 1px solid #0f3460;
+    color: #e0e0e0;
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 12px;
+    width: 100%;
+    margin-bottom: 6px;
+  }
+  .inline-btns { display: flex; gap: 6px; }
+  .grid-wrapper { overflow-x: auto; }
+
+  @media (max-width: 640px) {
+    .cell { width: 42px; height: 42px; }
+    .player { width: 32px; height: 32px; font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>&#9872; Blood Bowl Blocking Calculator</h1>
+<p class="subtitle">Place players, set strengths, pick Guard, then select blocker &rarr; defender to see your dice</p>
+
+<div class="layout">
+
+  <!-- Controls -->
+  <div class="panel controls-panel">
+    <div class="panel-title">Controls</div>
+
+    <div class="section">
+      <label>Mode</label>
+      <div class="btn-group">
+        <button class="btn active-team1" id="btn-team1" onclick="setMode('place-team1')">Place Team 1</button>
+        <button class="btn" id="btn-team2" onclick="setMode('place-team2')">Place Team 2</button>
+      </div>
+      <div class="btn-group" style="margin-top:6px;">
+        <button class="btn" id="btn-blocker" onclick="setMode('select-blocker')">Pick Blocker</button>
+        <button class="btn" id="btn-defender" onclick="setMode('select-defender')">Pick Defender</button>
+      </div>
+      <div class="btn-group" style="margin-top:6px;">
+        <button class="btn" id="btn-guard" onclick="setMode('toggle-guard')">Toggle Guard</button>
+        <button class="btn" id="btn-str" onclick="setMode('set-str')">Set Strength</button>
+        <button class="btn danger" onclick="setMode('remove')" id="btn-remove">Remove</button>
+      </div>
+      <div class="mode-hint" id="mode-hint">Click a grid cell to place a Team 1 player.</div>
+    </div>
+
+    <div class="section" id="str-section" style="display:none;">
+      <label>Strength to assign (click a player after)</label>
+      <select class="str-select" id="str-val">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+      </select>
+    </div>
+
+    <div class="section">
+      <label>Actions</label>
+      <div class="btn-group">
+        <button class="btn" onclick="clearAll()">Clear All</button>
+        <button class="btn" onclick="clearSelection()">Clear Selection</button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#3498db;"></div> Team 1
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#e74c3c;"></div> Team 2
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#f0c060;"></div> Guard
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid -->
+  <div class="panel grid-panel">
+    <div class="panel-title">Pitch (click to place / select)</div>
+    <div class="grid-wrapper">
+      <div id="grid-container"></div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="panel result-panel">
+    <div class="panel-title">Block Result</div>
+    <div id="result-area">
+      <p class="no-result">Select a blocker and a defender to calculate dice.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ROWS = 9, COLS = 13;
+let mode = 'place-team1';
+let grid = {}; // key: "r,c" -> {team, str, guard}
+let blocker = null, defender = null;
+
+function cellKey(r, c) { return `${r},${c}`; }
+function cellCoords(key) { const [r,c] = key.split(',').map(Number); return {r,c}; }
+
+function buildGrid() {
+  const container = document.getElementById('grid-container');
+  container.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    const row = document.createElement('div');
+    row.className = 'grid-row';
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.id = `cell-${r}-${c}`;
+      cell.onclick = () => handleCellClick(r, c);
+      row.appendChild(cell);
+    }
+    container.appendChild(row);
+  }
+  renderAll();
+}
+
+function renderAll() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      renderCell(r, c);
+    }
+  }
+  highlightAdjacent();
+  computeResult();
+}
+
+function renderCell(r, c) {
+  const cell = document.getElementById(`cell-${r}-${c}`);
+  if (!cell) return;
+  cell.innerHTML = '';
+  const key = cellKey(r, c);
+  const p = grid[key];
+  if (!p) return;
+
+  const isBlocker = blocker === key;
+  const isDefender = defender === key;
+
+  const div = document.createElement('div');
+  div.className = `player team${p.team}`;
+  if (isBlocker) div.classList.add('is-blocker');
+  if (isDefender) div.classList.add('is-defender');
+
+  const label = (p.team === 1 ? 'T1' : 'T2');
+  div.innerHTML = label;
+
+  if (p.guard) {
+    const dot = document.createElement('div');
+    dot.className = 'guard-dot';
+    div.appendChild(dot);
+  }
+
+  const badge = document.createElement('div');
+  badge.className = 'str-badge';
+  badge.textContent = `ST${p.str}`;
+  div.appendChild(badge);
+
+  cell.appendChild(div);
+}
+
+function highlightAdjacent() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.getElementById(`cell-${r}-${c}`);
+      if (cell) cell.classList.remove('highlight');
+    }
+  }
+  if (!blocker) return;
+  const {r: br, c: bc} = cellCoords(blocker);
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = br + dr, nc = bc + dc;
+      if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+        const cell = document.getElementById(`cell-${nr}-${nc}`);
+        if (cell) cell.classList.add('highlight');
+      }
+    }
+  }
+}
+
+function handleCellClick(r, c) {
+  const key = cellKey(r, c);
+  const existing = grid[key];
+
+  if (mode === 'place-team1') {
+    if (existing) { grid[key].team = 1; }
+    else { grid[key] = {team: 1, str: 3, guard: false}; }
+    if (blocker === key || defender === key) clearSelection();
+    renderAll();
+  } else if (mode === 'place-team2') {
+    if (existing) { grid[key].team = 2; }
+    else { grid[key] = {team: 2, str: 3, guard: false}; }
+    if (blocker === key || defender === key) clearSelection();
+    renderAll();
+  } else if (mode === 'remove') {
+    delete grid[key];
+    if (blocker === key) blocker = null;
+    if (defender === key) defender = null;
+    renderAll();
+  } else if (mode === 'toggle-guard') {
+    if (existing) {
+      grid[key].guard = !grid[key].guard;
+      renderAll();
+    }
+  } else if (mode === 'set-str') {
+    if (existing) {
+      grid[key].str = parseInt(document.getElementById('str-val').value);
+      renderAll();
+    }
+  } else if (mode === 'select-blocker') {
+    if (existing) {
+      blocker = key;
+      if (defender && grid[defender] && grid[defender].team === existing.team) defender = null;
+      renderAll();
+    }
+  } else if (mode === 'select-defender') {
+    if (existing) {
+      defender = key;
+      if (blocker && grid[blocker] && grid[blocker].team === existing.team) blocker = null;
+      renderAll();
+    }
+  }
+}
+
+function setMode(m) {
+  if (mode === m) {
+    mode = null;
+    document.getElementById('str-section').style.display = 'none';
+    document.getElementById('mode-hint').innerHTML = '';
+    ['btn-team1','btn-team2','btn-blocker','btn-defender','btn-guard','btn-str','btn-remove'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active-team1','active-team2','active-blocker','active-defender','active-guard','active-str','danger');
+    });
+    return;
+  }
+  mode = m;
+  document.getElementById('str-section').style.display = (m === 'set-str') ? 'block' : 'none';
+
+  const hints = {
+    'place-team1': 'Click empty cells to place Team 1 players. Click an existing player to convert them to Team 1.',
+    'place-team2': 'Click empty cells to place Team 2 players. Click an existing player to convert them to Team 2.',
+    'select-blocker': 'Click a player to set them as the <b>blocker</b>. Highlighted cells show adjacent squares.',
+    'select-defender': 'Click a player to set them as the <b>defender</b> being blocked.',
+    'toggle-guard': 'Click a player to toggle the <b>Guard</b> skill on or off (shown as gold dot).',
+    'set-str': 'Set the strength value below, then click a player to assign it.',
+    'remove': 'Click a player to remove them from the pitch.',
+  };
+  document.getElementById('mode-hint').innerHTML = hints[m] || '';
+
+  ['btn-team1','btn-team2','btn-blocker','btn-defender','btn-guard','btn-str','btn-remove'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active-team1','active-team2','active-blocker','active-defender','active-guard','active-str','danger');
+  });
+
+  const map = {
+    'place-team1': ['btn-team1','active-team1'],
+    'place-team2': ['btn-team2','active-team2'],
+    'select-blocker': ['btn-blocker','active-blocker'],
+    'select-defender': ['btn-defender','active-defender'],
+    'toggle-guard': ['btn-guard','active-guard'],
+    'set-str': ['btn-str','active-str'],
+    'remove': ['btn-remove','danger'],
+  };
+  if (map[m]) {
+    const el = document.getElementById(map[m][0]);
+    if (el) el.classList.add(map[m][1]);
+  }
+}
+
+function clearSelection() {
+  blocker = null;
+  defender = null;
+  renderAll();
+}
+
+function clearAll() {
+  grid = {};
+  blocker = null;
+  defender = null;
+  renderAll();
+}
+
+function getAdjacentKeys(key) {
+  const {r, c} = cellCoords(key);
+  const adj = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+        adj.push(cellKey(nr, nc));
+      }
+    }
+  }
+  return adj;
+}
+
+function isAdjacent(keyA, keyB) {
+  return getAdjacentKeys(keyA).includes(keyB);
+}
+
+function computeResult() {
+  const area = document.getElementById('result-area');
+
+  if (!blocker || !defender) {
+    area.innerHTML = '<p class="no-result">Select a blocker and a defender to calculate dice.</p>';
+    return;
+  }
+  const b = grid[blocker];
+  const d = grid[defender];
+  if (!b || !d) {
+    area.innerHTML = '<p class="no-result">Blocker or defender no longer exists.</p>';
+    return;
+  }
+  if (b.team === d.team) {
+    area.innerHTML = '<p class="no-result">Blocker and defender must be on different teams!</p>';
+    return;
+  }
+  if (!isAdjacent(blocker, defender)) {
+    area.innerHTML = '<p class="no-result" style="color:#e74c3c;">&#9888; Blocker is not adjacent to defender! Move them next to each other.</p>';
+    return;
+  }
+
+  // Calculate assists
+  const blockerAdj = getAdjacentKeys(blocker);
+  const defenderAdj = getAdjacentKeys(defender);
+
+  // Blocker's assists: opponent-team players adjacent to defender, NOT themselves marked by a blocker-team player adjacent to them (unless they have Guard)
+  let blockerAssists = 0, defenderAssists = 0;
+  const blockerAssistDetails = [], defenderAssistDetails = [];
+
+  for (const key of defenderAdj) {
+    if (key === blocker) continue;
+    const p = grid[key];
+    if (!p || p.team !== b.team) continue;
+    // This is a teammate of the blocker adjacent to the defender
+    // Is this player marked by a defender-team player?
+    if (p.guard) {
+      blockerAssists++;
+      blockerAssistDetails.push({key, guard: true});
+    } else {
+      // Check if marked
+      const marked = getAdjacentKeys(key).some(k2 => k2 !== blocker && k2 !== defender && grid[k2] && grid[k2].team === d.team);
+      if (!marked) {
+        blockerAssists++;
+        blockerAssistDetails.push({key, guard: false});
+      } else {
+        blockerAssistDetails.push({key, guard: false, marked: true});
+      }
+    }
+  }
+
+  for (const key of blockerAdj) {
+    if (key === defender) continue;
+    const p = grid[key];
+    if (!p || p.team !== d.team) continue;
+    if (p.guard) {
+      defenderAssists++;
+      defenderAssistDetails.push({key, guard: true});
+    } else {
+      const marked = getAdjacentKeys(key).some(k2 => k2 !== defender && k2 !== blocker && grid[k2] && grid[k2].team === b.team);
+      if (!marked) {
+        defenderAssists++;
+        defenderAssistDetails.push({key, guard: false});
+      } else {
+        defenderAssistDetails.push({key, guard: false, marked: true});
+      }
+    }
+  }
+
+  const effectiveBlocker = b.str + blockerAssists;
+  const effectiveDefender = d.str + defenderAssists;
+
+  let dice, chooser;
+  if (effectiveBlocker > effectiveDefender * 2) {
+    dice = 3; chooser = 'blocker';
+  } else if (effectiveBlocker > effectiveDefender) {
+    dice = 2; chooser = 'blocker';
+  } else if (effectiveBlocker === effectiveDefender) {
+    dice = 1; chooser = null;
+  } else if (effectiveDefender > effectiveBlocker * 2) {
+    dice = 3; chooser = 'defender';
+  } else {
+    dice = 2; chooser = 'defender';
+  }
+
+  const diceLabel = dice === 1 ? '1 die' : `${dice} dice`;
+  const chooserHtml = chooser
+    ? `<span class="chooser-tag chooser-${chooser}">${chooser === 'blocker' ? 'Blocker chooses' : 'Defender chooses'}</span>`
+    : '';
+
+  // Build dice display
+  let diceHtml = '';
+  for (let i = 0; i < 3; i++) {
+    diceHtml += `<div class="die${i >= dice ? ' dim' : ''}">&#9856;</div>`;
+  }
+
+  // Detail lines
+  const blockerAssistSummary = blockerAssistDetails.map(a =>
+    a.marked ? `<s>T1 assist (marked)</s>` : `+1 assist${a.guard ? ' (Guard)' : ''}`
+  ).join(', ') || 'none';
+
+  const defenderAssistSummary = defenderAssistDetails.map(a =>
+    a.marked ? `<s>T2 assist (marked)</s>` : `+1 assist${a.guard ? ' (Guard)' : ''}`
+  ).join(', ') || 'none';
+
+  area.innerHTML = `
+    <div class="result-box">
+      <div class="dice-display">${diceHtml}</div>
+      <div class="result-text">
+        <div class="result-main">Roll ${diceLabel} ${chooserHtml}</div>
+        <div class="result-detail">
+          <span>Blocker effective ST:</span> ${b.str} base + ${blockerAssists} assist(s) = <span>${effectiveBlocker}</span>
+          &nbsp;&bull;&nbsp; T1 assists: ${blockerAssistSummary}<br>
+          <span>Defender effective ST:</span> ${d.str} base + ${defenderAssists} assist(s) = <span>${effectiveDefender}</span>
+          &nbsp;&bull;&nbsp; T2 assists: ${defenderAssistSummary}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+buildGrid();
+setMode('place-team1');
+</script>
+</body>
+</html>
